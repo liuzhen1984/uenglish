@@ -1,0 +1,10 @@
+*.[od]
+*.iml
+*.log
+target/
+out/
+node_modules/
+.*/target/
+.idea
+.bsp
+

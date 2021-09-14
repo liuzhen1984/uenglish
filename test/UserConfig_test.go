@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+func init()  {
+	fileName := "/Users/zliu/work/golang/telegram_bot/resource/config.properties"
+	domain.LoadProperties(fileName)
+}
+
 func TestSaveUser(t *testing.T){
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{
@@ -104,8 +109,6 @@ func TestFindUserByDelay(t *testing.T){
 }
 
 func TestDeleteVocabulary(t *testing.T){
-	fileName := "/Users/zliu/work/golang/telegram_bot/resource/config.properties"
-	domain.LoadProperties(fileName)
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{
 		panic(err)
