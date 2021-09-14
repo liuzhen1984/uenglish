@@ -4,6 +4,7 @@ import (
 	"fmt"
 	tb "gopkg.in/tucnak/telebot.v2"
 	"log"
+	"strings"
 	domain "telegram_bot/com/trples/bot/config"
 	"telegram_bot/com/trples/bot/dao"
 	"time"
@@ -36,8 +37,9 @@ func BotRoute()  {
 			b.Send(m.Sender,fmt.Sprintf("Welcome %s %s to add learning english bot, but init user failed",m.Sender.FirstName,m.Sender.LastName))
 			return
 		}
-		b.Send(m.Sender,fmt.Sprintf("Welcome %s %s to add learning english bot",m.Sender.FirstName,m.Sender.LastName))
+		b.Send(m.Sender,fmt.Sprintf("Welcome %s %s to add learning english bot.",m.Sender.FirstName,m.Sender.LastName))
 	})
+
 
 	b.Handle("/stop", func(m *tb.Message) {
 		err := UserStop(m.Sender)
@@ -51,61 +53,61 @@ func BotRoute()  {
 	b.Handle("/add", func(m *tb.Message) {
 		err:=VocabularyAdd(m.Sender)
 		if err!=nil{
-			b.Send(m.Sender, "Server error, please retry later")
+			b.Send(m.Sender, fmt.Sprintf("Server error, please retry later: %s ",err))
+			return
 		}
-		b.Send(m.Sender, "Begin receive your input [word:sentence]")
-		b.Send(m.Sender, "=======================================")
+		b.Send(m.Sender, "Begin add your input [word:sentence]:")
 	})
 	b.Handle("/end", func(m *tb.Message) {
 		//	//Receive new words, and sentences | update words and sentences | Review words
+		message:=strings.ReplaceAll(m.Text,"/end","")
 		user:=UserGet(int64(m.Sender.ID))
-		if !user.IsInput {
-			b.Send(m.Sender, fmt.Sprintf("Your status is error waitType=%s",user.WaitType))
-		}
 		switch user.WaitType {
 			case dao.Review:
-				if m.Text == ""{
+				if message == ""{
 					b.Send(m.Sender, "Please enter the word you want to end")
 					return
 				}
-				err:=VocabularyEndReview(m.Sender,m.Text)
+				result,err:=VocabularyEndReview(m.Sender,message)
 				if err!=nil{
-					b.Send(m.Sender, err.Error())
+					b.Send(m.Sender, fmt.Sprintf("error: %s, total:%d, pass:%d",err.Error(),result.Total,result.Pass))
+					return
 				}
-				b.Send(m.Sender, "=============End Failed==================")
+				b.Send(m.Sender, fmt.Sprintf("Review word: %s completed, total:%d, pass:%d",message,result.Total,result.Pass))
 			default:
 				err:=VocabularyEnd(m.Sender)
 				if err!=nil{
-					b.Send(m.Sender, "Server error, please retry later")
+					b.Send(m.Sender, fmt.Sprintf("Server error, please retry later: %s ",err))
 				}
-				b.Send(m.Sender, "=============End Successful===============")
+				b.Send(m.Sender, "===End Successful===")
 		}
 
 	})
 	b.Handle("/review", func(m *tb.Message) {
-		err:=VocabularyReview(m.Sender,m.Text)
+		message:=strings.ReplaceAll(m.Text,"/review","")
+		err:=VocabularyReview(m.Sender,message)
 		if err!=nil{
-			b.Send(m.Sender, "Server error, please retry later")
+			b.Send(m.Sender, fmt.Sprintf("Server error, please retry later %s",err.Error()))
+			return
 		}
-		b.Send(m.Sender, "Begin receive your input [word:sentence]")
-		b.Send(m.Sender, "=======================================")
+		b.Send(m.Sender, "Begin review your input [word:sentence]:")
 	})
 	b.Handle("/update", func(m *tb.Message) {
 		err:=VocabularyUpdate(m.Sender)
 		if err!=nil{
 			b.Send(m.Sender, "Server error, please retry later")
 		}
-		b.Send(m.Sender, "Begin receive your input [word:sentence]")
-		b.Send(m.Sender, "=======================================")
+		b.Send(m.Sender, "Begin update your [word:sentence]")
 	})
 	b.Handle("/get", func(m *tb.Message) {
-		vocabulary,err:=VocabularyGet(m.Sender.ID,m.Text)
+		message:=strings.ReplaceAll(m.Text,"/get","")
+		vocabulary,err:=VocabularyGet(m.Sender.ID,message)
 		if err!=nil {
 			b.Send(m.Sender, fmt.Sprintf("%s doesn't exist",m.Text))
 			return
 		}
 		b.Send(m.Sender,fmt.Sprintf("%s, the status is %s, review is %s",vocabulary.Word,vocabulary.LearnStatus,vocabulary.ReviewStatus))
-		sentences,err:=SentenceFindByWord(m.Sender.ID,m.Text)
+		sentences,err:=SentenceFindByWord(m.Sender.ID,message)
 		if err!=nil {
 			b.Send(m.Sender, fmt.Sprintf("%s doesn't have sentences",m.Text))
 			return
@@ -119,8 +121,10 @@ func BotRoute()  {
 	})
 
 	b.Handle("/delete", func(m *tb.Message) {
-		fmt.Printf(" delete %s\n",m.Text)
-		VocabularyDeleteByWord(m.Sender.ID,m.Text)
+		message:=strings.ReplaceAll(m.Text,"/delete","")
+
+		fmt.Printf(" delete %s\n",message)
+		VocabularyDeleteByWord(m.Sender.ID,message)
 		b.Send(m.Sender, "You will delete vocabulary "+m.Text)
 	})
 
@@ -134,17 +138,23 @@ func BotRoute()  {
 				err:=VocabularyAddReceive(m.Sender,m.Text)
 				if err!=nil{
 					b.Send(m.Sender, "Server error, please retry later")
+					return
 				}
 				b.Send(m.Sender, fmt.Sprintf("Add vocabulary %s successful",m.Text))
 			case dao.Update:
 				err:=VocabularyUpdateReceive(m.Sender,m.Text)
 				if err!=nil{
-					b.Send(m.Sender, "Server error, please retry later")
+					b.Send(m.Sender, fmt.Sprintf("Server error, please retry later %s",err))
+					return
 				}
 				b.Send(m.Sender, fmt.Sprintf("Add vocabulary %s successful",m.Text))
 			case dao.Review:
-				//todo
-				b.Send(m.Sender, fmt.Sprintf("Review vocabulary %s successful",m.Text))
+				result,err:=VocabularyReviewReceive(m.Sender,m.Text)
+				if err!=nil{
+					b.Send(m.Sender, fmt.Sprintf("Review word: %s %t, total:%d, pass:%d",result.Word,result.Result,result.Total,result.Pass))
+				}else{
+					b.Send(m.Sender, fmt.Sprintf("Review word: %s %t, total:%d, pass:%d",result.Word,result.Result,result.Total,result.Pass))
+				}
 			default:
 				b.Send(m.Sender, "User wait type value is error, please retry")
 				VocabularyEnd(m.Sender)

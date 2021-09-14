@@ -211,6 +211,19 @@ func SentenceUpdateStatus(ctx context.Context, client *mongo.Client,id primitive
 	}
 	return err
 }
+//Receive new words, and sentences | update words and sentences | Review words
+func SentenceUpdateStatusByWord(ctx context.Context, client *mongo.Client,userId int64,word string, status ReviewStatus)  error{
+	if err := client.Ping(ctx, readpref.Primary()); err != nil {
+		panic(err)
+	}
+	database := client.Database(domain.LoadProperties().MongodbDatase)
+	collection := database.Collection(Collection_Sentences)
+	_,err:=collection.UpdateMany(ctx,bson.M{"user_id":userId,"word":word},bson.D{{"$set",bson.M{"status":status,"input_updated_at":time.Now().UnixMilli()}}})
+	if(err!=nil){
+		fmt.Println(err)
+	}
+	return err
+}
 
 func VocabularyUpdateStatus(ctx context.Context, client *mongo.Client,userId int64,word string, status ReviewStatus)  error{
 	if err := client.Ping(ctx, readpref.Primary()); err != nil {

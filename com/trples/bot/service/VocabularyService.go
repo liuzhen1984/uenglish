@@ -10,11 +10,14 @@ import (
 
 
 type ReviewResult struct {
-	Total	 int `json:"total"`
-	Pass	 int `json:"pass"`
+	Word	 string `json:"word"`
+	Total	 int    `json:"total"`
+	Pass	 int    `json:"pass"`
+	Result   bool  	`json:"result"`
 }
 
 func VocabularyDeleteByWord(userId int,word string)  {
+	word = strings.ToLower(strings.Trim(word," "))
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{
 		panic(err)
@@ -25,6 +28,7 @@ func VocabularyDeleteByWord(userId int,word string)  {
 }
 
 func VocabularyGet(userId int,word string) (dao.Vocabulary,error){
+	word = strings.ToLower(strings.Trim(word," "))
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{
 		return dao.Vocabulary{},err
@@ -49,10 +53,12 @@ func VocabularyAddReceive(sender *telebot.User,message string) (error){
 	}
 	defer dao.CloseClient(ctx,client)
 	words := strings.Split(message,":")
-	vocabulary,err:=dao.VocabularyGet(ctx,client,int64(sender.ID),words[0])
+	word:= strings.ToLower(strings.Trim(words[0]," "))
+	sent:=strings.ToLower(strings.Trim(words[1]," "))
+	vocabulary,err:=dao.VocabularyGet(ctx,client,int64(sender.ID),word)
 	if err != nil{
 		vocabulary=dao.Vocabulary{}
-		vocabulary.Word = words[0]
+		vocabulary.Word = word
 		vocabulary.IsRemember = false
 		vocabulary.LearnStatus = dao.Waiting
 		vocabulary.ReviewStatus = dao.FAIL
@@ -63,10 +69,10 @@ func VocabularyAddReceive(sender *telebot.User,message string) (error){
 		if err != nil{
 			return err
 		}
-		dao.SentencesDeleteByWord(ctx,client,int64(sender.ID),words[0])
+		dao.SentencesDeleteByWord(ctx,client,int64(sender.ID),word)
 		sentence:=dao.Sentences{}
-		sentence.Word = words[0]
-		sentence.Sentence = words[1]
+		sentence.Word = word
+		sentence.Sentence = sent
 		sentence.ReviewCount = 0
 		sentence.Status = dao.FAIL
 		sentence.UserId = int64(sender.ID)
@@ -75,22 +81,22 @@ func VocabularyAddReceive(sender *telebot.User,message string) (error){
 		return err
 	}
 
-	sentences,err:=dao.SentenceFindByWord(ctx,client,int64(sender.ID),words[0])
+	sentences,err:=dao.SentenceFindByWord(ctx,client,int64(sender.ID),word)
 
 	if err != nil{
 		return err
 	}
 	exist:= false
 	for _,v:= range sentences{
-		if strings.ToLower(strings.Trim(v.Sentence," "))==strings.ToLower(strings.Trim(words[1], " ")) {
+		if strings.ToLower(strings.Trim(v.Sentence," "))==sent {
 			exist = true
 			break
 		}
 	}
 	if !exist {
 		sentence:=dao.Sentences{}
-		sentence.Word = words[0]
-		sentence.Sentence = words[1]
+		sentence.Word = word
+		sentence.Sentence = sent
 		sentence.ReviewCount = 0
 		sentence.Status = dao.FAIL
 		sentence.UserId = int64(sender.ID)
@@ -102,6 +108,7 @@ func VocabularyAddReceive(sender *telebot.User,message string) (error){
 
 
 func VocabularyReview(sender *telebot.User,word string) (error){
+	word = strings.ToLower(strings.Trim(word," "))
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{
 		return err
@@ -115,42 +122,53 @@ func VocabularyReview(sender *telebot.User,word string) (error){
 		return errors.New(fmt.Sprintf("%s is reviewing\n",word))
 	}
 	dao.VocabularyUpdateLearnStatus(ctx,client,int64(sender.ID),word,dao.Learning)
+	dao.SentenceUpdateStatusByWord(ctx,client,int64(sender.ID),word,dao.FAIL)
 	return dao.UserStartInput(ctx,client,int64(sender.ID),dao.Review)
 }
 
 
 //only delete the sentence
-func VocabularyReviewReceive(sender *telebot.User,message string) (error){
+func VocabularyReviewReceive(sender *telebot.User,message string) (ReviewResult,error){
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{
-		return err
+		return ReviewResult{},err
 	}
 	defer dao.CloseClient(ctx,client)
 	words := strings.Split(message,":")
-	_,err=dao.VocabularyGet(ctx,client,int64(sender.ID),words[0])
+	word:=strings.ToLower(strings.Trim(words[0]," "))
+	sent:=strings.ToLower(strings.Trim(words[1]," "))
+
+	_,err=dao.VocabularyGet(ctx,client,int64(sender.ID),word)
 	if err != nil{
-		return err
+		return ReviewResult{},err
 	}
 
-	sentence,err:=dao.SentenceFindByWord(ctx,client,int64(sender.ID),words[0])
+	sentence,err:=dao.SentenceFindByWord(ctx,client,int64(sender.ID),word)
 	if err != nil{
-		return err
+		return ReviewResult{},err
 	}
 
 	reviewResult := ReviewResult{}
+	reviewResult.Word = word
 	reviewResult.Total = len(sentence)
+	reviewResult.Result = false
 
-	for _,v:=range sentence{
-		if v.Status == dao.PASS {
-			reviewResult.Pass = reviewResult.Pass+1
-		}
-		if strings.ToLower(strings.Trim(v.Sentence," ")) == strings.ToLower(strings.Trim(words[1]," ")){
+	for _,v:=range sentence {
+		if strings.ToLower(strings.Trim(v.Sentence," ")) == sent {
 			dao.SentenceUpdateStatus(ctx,client,v.Id,dao.PASS)
+			reviewResult.Pass = reviewResult.Pass+1
+			reviewResult.Result = true
+			continue
+		}
+		if v.Status == dao.PASS {
 			reviewResult.Pass = reviewResult.Pass+1
 		}
 	}
 
-	return nil
+	if reviewResult.Result {
+		return reviewResult,nil
+	}
+	return reviewResult,errors.New(fmt.Sprintf("Review word %s failed",word))
 }
 
 func VocabularyUpdate(sender *telebot.User) (error){
@@ -170,11 +188,13 @@ func VocabularyUpdateReceive(sender *telebot.User,message string) (error){
 	}
 	defer dao.CloseClient(ctx,client)
 	words := strings.Split(message,":")
-	_,err=dao.VocabularyGet(ctx,client,int64(sender.ID),words[0])
+	word:=strings.ToLower(strings.Trim(words[0]," "))
+	sent:=strings.ToLower(strings.Trim(words[1]," "))
+	_,err=dao.VocabularyGet(ctx,client,int64(sender.ID),word)
 	if err != nil{
 		return err
 	}
-	_,err=dao.SentencesDeleteBySentence(ctx,client,int64(sender.ID),words[0],words[1])
+	_,err=dao.SentencesDeleteBySentence(ctx,client,int64(sender.ID),word,sent)
 	if err != nil{
 		return err
 	}
@@ -189,24 +209,27 @@ func VocabularyEnd(sender *telebot.User) (error){
 	defer dao.CloseClient(ctx,client)
 	return dao.UserEndInput(ctx,client,int64(sender.ID))
 }
-func VocabularyEndReview(sender *telebot.User,word string) (error){
+func VocabularyEndReview(sender *telebot.User,word string) (ReviewResult,error){
+	word = strings.ToLower(strings.Trim(word," "))
+
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{
-		return err
+		return ReviewResult{},err
 	}
 	defer dao.CloseClient(ctx,client)
 
 	_,err=dao.VocabularyGet(ctx,client,int64(sender.ID),word)
 	if err != nil{
-		return err
+		return ReviewResult{},err
 	}
 
 	sentence,err:=dao.SentenceFindByWord(ctx,client,int64(sender.ID),word)
 	if err != nil{
-		return err
+		return ReviewResult{},err
 	}
 
 	reviewResult := ReviewResult{}
+	reviewResult.Word = word
 	reviewResult.Total = len(sentence)
 
 	for _,v:=range sentence{
@@ -218,13 +241,15 @@ func VocabularyEndReview(sender *telebot.User,word string) (error){
 	if reviewResult.Total == reviewResult.Pass {
 		dao.VocabularyUpdateLearnStatus(ctx,client,int64(sender.ID),word,dao.Finished)
 		dao.VocabularyUpdateStatus(ctx,client,int64(sender.ID),word,dao.PASS)
-		return dao.UserEndInput(ctx,client,int64(sender.ID))
+		err= dao.UserEndInput(ctx,client,int64(sender.ID))
+		return reviewResult,err
 	}
-	return errors.New("You need to pass this review ["+word+"]")
-
+	err= errors.New("You need to pass this review ["+word+"]")
+	return reviewResult,err
 }
 
 func SentenceFindByWord(userId int, word string) ([]dao.Sentences,error){
+	word = strings.ToLower(strings.Trim(word," "))
 	ctx,client,err:=dao.GetClient()
 	sentenceList:=[]dao.Sentences{}
 	if err!=nil{
