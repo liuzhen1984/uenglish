@@ -37,6 +37,7 @@ func VocabularyGet(userId int,word string) (dao.Vocabulary,error){
 	vocabulary,err:=dao.VocabularyGet(ctx,client,int64(userId),word)
 	return vocabulary,err
 }
+
 func VocabularyAdd(sender *telebot.User) (error){
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{

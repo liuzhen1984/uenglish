@@ -20,6 +20,7 @@ const (
 	Add		WaitTypeEnum = "add"
 	Review	WaitTypeEnum = "review"
 	Update	WaitTypeEnum = "update"
+	Translate	WaitTypeEnum = "translate"
 )
 
 type ReviewStatus string

@@ -128,6 +128,23 @@ func BotRoute()  {
 		b.Send(m.Sender, "You will delete vocabulary "+m.Text)
 	})
 
+	b.Handle("/t", func(m *tb.Message) {
+		err:=DictionaryTranslateStart(m.Sender)
+		if err!=nil{
+			b.Send(m.Sender, fmt.Sprintf("Server error, please retry later: %s ",err))
+			return
+		}
+		b.Send(m.Sender, "Begin add your input sentence:")
+	})
+
+	b.Handle("/longman", func(m *tb.Message) {
+		message:=strings.ReplaceAll(m.Text,"/longman","")
+
+		fmt.Printf(" longman %s\n",message)
+		result:=DictionaryLongman(m.Sender.ID,message)
+		b.Send(m.Sender, "From longman dictionary : " + result)
+	})
+
 	b.Handle(tb.OnText, func(m *tb.Message) {
 		user:=UserGet(int64(m.Sender.ID))
 		if !user.IsInput {
@@ -155,6 +172,10 @@ func BotRoute()  {
 				}else{
 					b.Send(m.Sender, fmt.Sprintf("Review word: %s %t, total:%d, pass:%d",result.Word,result.Result,result.Total,result.Pass))
 				}
+			case dao.Translate:
+				result:=DictionaryTranslate(m.Sender.ID,m.Text)
+				b.Send(m.Sender, "From google translate dictionary : " + result)
+				VocabularyEnd(m.Sender)
 			default:
 				b.Send(m.Sender, "User wait type value is error, please retry")
 				VocabularyEnd(m.Sender)
