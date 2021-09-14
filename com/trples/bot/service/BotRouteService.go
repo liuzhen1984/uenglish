@@ -5,6 +5,7 @@ import (
 	tb "gopkg.in/tucnak/telebot.v2"
 	"log"
 	domain "telegram_bot/com/trples/bot/config"
+	"telegram_bot/com/trples/bot/dao"
 	"time"
 )
 
@@ -47,8 +48,8 @@ func BotRoute()  {
 		b.Send(m.Sender,fmt.Sprintf("You have stopped all reminder"))
 	})
 
-	b.Handle("/daily", func(m *tb.Message) {
-		err:=VocabularyStart(m.Sender)
+	b.Handle("/add", func(m *tb.Message) {
+		err:=VocabularyAdd(m.Sender)
 		if err!=nil{
 			b.Send(m.Sender, "Server error, please retry later")
 		}
@@ -57,16 +58,62 @@ func BotRoute()  {
 	})
 	b.Handle("/end", func(m *tb.Message) {
 		//	//Receive new words, and sentences | update words and sentences | Review words
-		err:=VocabularyEnd(m.Sender)
+		user:=UserGet(int64(m.Sender.ID))
+		if !user.IsInput {
+			b.Send(m.Sender, fmt.Sprintf("Your status is error waitType=%s",user.WaitType))
+		}
+		switch user.WaitType {
+			case dao.Review:
+				if m.Text == ""{
+					b.Send(m.Sender, "Please enter the word you want to end")
+					return
+				}
+				err:=VocabularyEndReview(m.Sender,m.Text)
+				if err!=nil{
+					b.Send(m.Sender, err.Error())
+				}
+				b.Send(m.Sender, "=============End Failed==================")
+			default:
+				err:=VocabularyEnd(m.Sender)
+				if err!=nil{
+					b.Send(m.Sender, "Server error, please retry later")
+				}
+				b.Send(m.Sender, "=============End Successful===============")
+		}
+
+	})
+	b.Handle("/review", func(m *tb.Message) {
+		err:=VocabularyReview(m.Sender,m.Text)
 		if err!=nil{
 			b.Send(m.Sender, "Server error, please retry later")
 		}
+		b.Send(m.Sender, "Begin receive your input [word:sentence]")
 		b.Send(m.Sender, "=======================================")
 	})
-	b.Handle("/review", func(m *tb.Message) {
-		b.Send(m.Sender, "Hello review!")
+	b.Handle("/update", func(m *tb.Message) {
+		err:=VocabularyUpdate(m.Sender)
+		if err!=nil{
+			b.Send(m.Sender, "Server error, please retry later")
+		}
+		b.Send(m.Sender, "Begin receive your input [word:sentence]")
+		b.Send(m.Sender, "=======================================")
 	})
-
+	b.Handle("/get", func(m *tb.Message) {
+		vocabulary,err:=VocabularyGet(m.Sender.ID,m.Text)
+		if err!=nil {
+			b.Send(m.Sender, fmt.Sprintf("%s doesn't exist",m.Text))
+			return
+		}
+		b.Send(m.Sender,fmt.Sprintf("%s, the status is %s, review is %s",vocabulary.Word,vocabulary.LearnStatus,vocabulary.ReviewStatus))
+		sentences,err:=SentenceFindByWord(m.Sender.ID,m.Text)
+		if err!=nil {
+			b.Send(m.Sender, fmt.Sprintf("%s doesn't have sentences",m.Text))
+			return
+		}
+		for _,v:=range sentences{
+			b.Send(m.Sender,fmt.Sprintf("%s : %s",v.Word,v.Sentence))
+		}
+	})
 	b.Handle("/schedule", func(m *tb.Message) {
 		b.Send(m.Sender, "Hello schedule!")
 	})
@@ -83,16 +130,19 @@ func BotRoute()  {
 			b.Send(m.Sender, fmt.Sprintf("Your status is error waitType=%s",user.WaitType))
 		}
 		switch user.WaitType {
-			case "receive":
-				err:=VocabularyAdd(m.Sender,m.Text)
+			case dao.Add:
+				err:=VocabularyAddReceive(m.Sender,m.Text)
 				if err!=nil{
 					b.Send(m.Sender, "Server error, please retry later")
 				}
 				b.Send(m.Sender, fmt.Sprintf("Add vocabulary %s successful",m.Text))
-			case "update":
-				//todo
-				b.Send(m.Sender, fmt.Sprintf("Update vocabulary %s successful",m.Text))
-			case "review":
+			case dao.Update:
+				err:=VocabularyUpdateReceive(m.Sender,m.Text)
+				if err!=nil{
+					b.Send(m.Sender, "Server error, please retry later")
+				}
+				b.Send(m.Sender, fmt.Sprintf("Add vocabulary %s successful",m.Text))
+			case dao.Review:
 				//todo
 				b.Send(m.Sender, fmt.Sprintf("Review vocabulary %s successful",m.Text))
 			default:

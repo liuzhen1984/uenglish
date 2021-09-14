@@ -8,7 +8,7 @@ import (
 )
 
 func main(){
-	fileName := "/Users/zliu/work/golang/telegram_bot/resource/config.properties"
+	fileName := "/Users/zliu/work/golang/uenglish/resource/config.properties"
 	if len(os.Args)>1 {
 		fileName = os.Args[1]
 		_,err:=os.ReadFile(fileName)

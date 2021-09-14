@@ -6,12 +6,13 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	domain "telegram_bot/com/trples/bot/config"
 	"telegram_bot/com/trples/bot/dao"
+	"telegram_bot/com/trples/bot/service"
 	"testing"
 	"time"
 )
 
 func init()  {
-	fileName := "/Users/zliu/work/golang/telegram_bot/resource/config.properties"
+	fileName := "/Users/zliu/work/golang/uenglish/resource/config.properties"
 	domain.LoadProperties(fileName)
 }
 
@@ -109,11 +110,7 @@ func TestFindUserByDelay(t *testing.T){
 }
 
 func TestDeleteVocabulary(t *testing.T){
-	ctx,client,err:=dao.GetClient()
-	if err!=nil{
-		panic(err)
-	}
-	defer dao.CloseClient(ctx,client)
-	dao.VocabularyDeleteByWord(ctx,client,1470647544,"e")
-	dao.SentencesDeleteByWord(ctx,client,1470647544,"e")
+	service.VocabularyDeleteByWord(1470647544,"test")
+	service.VocabularyDeleteByWord(1470647544,"love")
+	service.VocabularyDeleteByWord(1470647544,"beat")
 }
