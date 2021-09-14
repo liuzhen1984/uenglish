@@ -14,7 +14,7 @@ func DictionaryTranslateStart(sender *telebot.User) (error){
 		return err
 	}
 	defer dao.CloseClient(ctx,client)
-	return dao.UserStartInput(ctx,client,int64(sender.ID),dao.Add)
+	return dao.UserStartInput(ctx,client,int64(sender.ID),dao.Translate)
 }
 func DictionaryLongman(userId int,word string) string  {
 	word = strings.ToLower(strings.Trim(word," "))
