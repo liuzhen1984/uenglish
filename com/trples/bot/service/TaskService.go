@@ -40,11 +40,22 @@ func UserChecking() {
 	opts.SetSort(bson.D{{"delay_to_time", -1}})
 
 	where:= bson.D{
-		{"is_bot",false},
-		{"is_enable",true},
-		{"reminder_at",bson.D{{"$lt",time.Now().UnixMilli()}}},
 		{
 			"$or",bson.A{
+				bson.D{{"is_bot",false}},
+				bson.D{{"is_bot",nil}},
+			},
+		},
+		{"is_enable",true},
+		{
+			"$or",bson.A{
+				bson.D{{"reminder_at",nil}},
+				bson.D{{"reminder_at",bson.D{{"$lt",time.Now().UnixMilli()}}}},
+			},
+		},
+		{
+			"$or",bson.A{
+			bson.D{{"is_delay", nil}},
 			bson.D{{"is_delay", false}},
 			bson.D{{"is_delay", true}, {"delay_to_time", bson.D{{"$gt", 0}}}, {"delay_to_time", bson.D{{"$lt", currentTime}}},
 			},
@@ -89,7 +100,19 @@ func checkVocabulary(ctx context.Context, client *mongo.Client,userId int64)(int
 	ctime:=time.Now().UnixMilli()
 	where:= bson.D{
 			{"user_id",userId},
-			{"is_remember",false},
+			{
+				"$or",bson.A{
+					bson.D{{"learn_status",dao.Waiting}},
+					bson.D{{"learn_status",dao.Finished}},
+					bson.D{{"is_remember",nil}},
+				},
+			},
+			{
+				"$or",bson.A{
+					bson.D{{"is_remember",false}},
+					bson.D{{"is_remember",nil}},
+				},
+			},
 			{"latest_review_at",bson.D{{"$lt", ctime}},
 		},
 	}
@@ -100,3 +123,4 @@ func checkVocabulary(ctx context.Context, client *mongo.Client,userId int64)(int
 	}
 	return result.ModifiedCount,err
 }
+

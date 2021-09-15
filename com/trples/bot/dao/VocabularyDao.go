@@ -163,7 +163,12 @@ func VocabularyFindByReview(ctx context.Context, client *mongo.Client,userId int
 	collection := database.Collection(Collection_Vocabulary)
 	where:= bson.D{
 		{"user_id",userId},
-		{"is_remember",false},
+		{
+			"$or",bson.A{
+				bson.D{{"is_remember",false}},
+				bson.D{{"is_remember",nil}},
+			},
+		},
 		{"learn_status",Learning},
 		}
 	cursor,err:=collection.Find(ctx,where)
@@ -286,15 +291,16 @@ func VocabularyUpdateLearnStatus(ctx context.Context, client *mongo.Client,userI
 	return err
 }
 
-func VocabularyReviewCompleted(ctx context.Context, client *mongo.Client,userId int64,word Vocabulary)  error{
+func VocabularyReviewCompleted(ctx context.Context, client *mongo.Client,word Vocabulary)  error{
 	if err := client.Ping(ctx, readpref.Primary()); err != nil {
 		panic(err)
 	}
 	database := client.Database(domain.LoadProperties().MongodbDatase)
 	collection := database.Collection(Collection_Vocabulary)
-	_,err:=collection.UpdateOne(ctx,bson.M{"user_id":userId,"word":word},
+	word.ReminderCount = word.ReminderCount+1
+	_,err:=collection.UpdateByID(ctx,word.Id,
 		bson.D{{"$set",bson.M{"review_status":PASS,"input_updated_at":time.Now().UnixMilli(),"learn_status":Finished,
-			"latest_review_at":time.Now().UnixMilli()+word.Period*60*60*1000,"reminder_count":word.ReminderCount+1}}})
+			"latest_review_at":time.Now().UnixMilli()+word.ReminderCount*word.Period*60*60*1000,"reminder_count":word.ReminderCount+1}}})
 	if(err!=nil){
 		fmt.Println(err)
 	}

@@ -3,8 +3,11 @@ package service
 import (
 	"errors"
 	"fmt"
+	"go.mongodb.org/mongo-driver/bson"
 	"gopkg.in/tucnak/telebot.v2"
+	"log"
 	"strings"
+	domain "telegram_bot/com/trples/bot/config"
 	"telegram_bot/com/trples/bot/dao"
 	"time"
 )
@@ -110,30 +113,30 @@ func VocabularyAddReceive(sender *telebot.User,message string) (error){
 
 
 
-func VocabularyReview(sender *telebot.User,word string) ([]string,error){
+func VocabularyReview(userId int,word string) ([]string,error){
 	word = strings.ToLower(strings.Trim(word," "))
 	results:=[]string{word}
 	if word==""{
-		return VocabularyReviewAll(sender)
+		return VocabularyReviewAll(userId)
 	}
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{
 		return results,err
 	}
 	defer dao.CloseClient(ctx,client)
-	vocabulary,err:=dao.VocabularyGet(ctx,client,int64(sender.ID),word)
+	vocabulary,err:=dao.VocabularyGet(ctx,client,int64(userId),word)
 	if err!=nil{
 		return results,err
 	}
 	if vocabulary.LearnStatus == dao.Learning {
 		return results,errors.New(fmt.Sprintf("%s is reviewing\n",word))
 	}
-	dao.VocabularyUpdateLearnStatus(ctx,client,int64(sender.ID),word,dao.Learning)
-	dao.SentenceUpdateStatusByWord(ctx,client,int64(sender.ID),word,dao.FAIL)
-	return results,dao.UserStartInput(ctx,client,int64(sender.ID),dao.Review)
+	dao.VocabularyUpdateLearnStatus(ctx,client,int64(userId),word,dao.Learning)
+	dao.SentenceUpdateStatusByWord(ctx,client,int64(userId),word,dao.FAIL)
+	return results,dao.UserStartInput(ctx,client,int64(userId),dao.Review)
 }
 
-func VocabularyReviewAll(sender *telebot.User) ([]string,error){
+func VocabularyReviewAll(userId int) ([]string,error){
 	ctx,client,err:=dao.GetClient()
 	var vLits []string
 
@@ -141,10 +144,11 @@ func VocabularyReviewAll(sender *telebot.User) ([]string,error){
 		return vLits,err
 	}
 	defer dao.CloseClient(ctx,client)
-	err= dao.UserStartInput(ctx,client,int64(sender.ID),dao.Review)
-	result,err:=dao.VocabularyFindByReview(ctx,client,int64(sender.ID))
+	err= dao.UserStartInput(ctx,client,int64(userId),dao.Review)
+	result,err:=dao.VocabularyFindByReview(ctx,client,int64(userId))
 	if err==nil{
 		for _,v:=range result {
+			dao.SentenceUpdateStatusByWord(ctx,client,int64(userId),v.Word,dao.FAIL)
 			vLits = append(vLits,v.Word)
 		}
 	}
@@ -226,15 +230,15 @@ func VocabularyUpdateReceive(sender *telebot.User,message string) (error){
 	return nil
 }
 
-func VocabularyEnd(sender *telebot.User) (error){
+func VocabularyEnd(userId int) (error){
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{
 		return err
 	}
 	defer dao.CloseClient(ctx,client)
-	return dao.UserEndInput(ctx,client,int64(sender.ID))
+	return dao.UserEndInput(ctx,client,int64(userId))
 }
-func VocabularyEndReview(sender *telebot.User,word string) (ReviewResult,error){
+func VocabularyEndReview(userId int,word string) (ReviewResult,error){
 	word = strings.ToLower(strings.Trim(word," "))
 
 	ctx,client,err:=dao.GetClient()
@@ -243,12 +247,12 @@ func VocabularyEndReview(sender *telebot.User,word string) (ReviewResult,error){
 	}
 	defer dao.CloseClient(ctx,client)
 
-	vocab,err:=dao.VocabularyGet(ctx,client,int64(sender.ID),word)
+	vocab,err:=dao.VocabularyGet(ctx,client,int64(userId),word)
 	if err != nil{
 		return ReviewResult{},err
 	}
 
-	sentence,err:=dao.SentenceFindByWord(ctx,client,int64(sender.ID),word)
+	sentence,err:=dao.SentenceFindByWord(ctx,client,int64(userId),word)
 	if err != nil{
 		return ReviewResult{},err
 	}
@@ -264,11 +268,64 @@ func VocabularyEndReview(sender *telebot.User,word string) (ReviewResult,error){
 	}
 
 	if reviewResult.Total == reviewResult.Pass {
-		dao.VocabularyReviewCompleted(ctx,client,int64(sender.ID),vocab)
-		err= dao.UserEndInput(ctx,client,int64(sender.ID))
+		dao.VocabularyReviewCompleted(ctx,client,vocab)
+		err= dao.UserEndInput(ctx,client,int64(userId))
 		return reviewResult,err
 	}
 	err= errors.New("You need to pass this review ["+word+"]")
+	return reviewResult,err
+}
+
+func VocabularyEndAllReview(userId int) (ReviewResult,error){
+	ctx,client,err:=dao.GetClient()
+	if err!=nil{
+		return ReviewResult{},err
+	}
+	defer dao.CloseClient(ctx,client)
+
+	database := client.Database(domain.LoadProperties().MongodbDatase)
+	collection := database.Collection(dao.Collection_Vocabulary)
+	ctime:=time.Now().UnixMilli()
+	where:= bson.D{
+		{"user_id",int64(userId)},
+		{
+			"$or",bson.A{
+			bson.D{{"learn_status",dao.Learning}},
+			bson.D{{"learn_status",nil}},
+		},
+		},
+		{
+			"$or",bson.A{
+			bson.D{{"is_remember",false}},
+			bson.D{{"is_remember",nil}},
+		},
+		},
+		{"latest_review_at",bson.D{{"$lt", ctime}},
+		},
+	}
+	cursor,err:=collection.Find(ctx,where)
+	var count int64
+	reviewResult := ReviewResult{}
+	if(err!=nil){
+		fmt.Println(err)
+		return reviewResult,err
+	}
+	defer cursor.Close(ctx)
+	for cursor.Next(ctx) {
+		reviewResult.Total = reviewResult.Total+1
+		var vocabulary dao.Vocabulary
+		if err := cursor.Decode(&vocabulary); err != nil {
+			log.Fatal(err)
+			continue
+		}
+		_,err=VocabularyEndReview(userId,vocabulary.Word)
+		if err!=nil{
+			reviewResult.Pass = reviewResult.Pass+1
+			continue
+		}
+	}
+	fmt.Printf("user count %d \n",count)
+	reviewResult.Pass = reviewResult.Total-reviewResult.Pass
 	return reviewResult,err
 }
 

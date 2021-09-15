@@ -82,18 +82,21 @@ func BotRoute()  {
 		user:=UserGet(int64(m.Sender.ID))
 		switch user.WaitType {
 			case dao.Review:
+				message = strings.ToLower(strings.Trim(message," "))
+				var result ReviewResult
+				var err error
 				if message == ""{
-					bot.Send(m.Sender, "Please enter the word you want to end")
-					return
+					result,err =VocabularyEndAllReview(m.Sender.ID)
+				}else{
+					result,err =VocabularyEndReview(m.Sender.ID,message)
 				}
-				result,err:=VocabularyEndReview(m.Sender,message)
 				if err!=nil{
 					bot.Send(m.Sender, fmt.Sprintf("error: %s, total:%d, pass:%d",err.Error(),result.Total,result.Pass))
 					return
 				}
 				bot.Send(m.Sender, fmt.Sprintf("Review word: %s completed, total:%d, pass:%d",message,result.Total,result.Pass))
 			default:
-				err:=VocabularyEnd(m.Sender)
+				err:=VocabularyEnd(m.Sender.ID)
 				if err!=nil{
 					bot.Send(m.Sender, fmt.Sprintf("Server error, please retry later: %s ",err))
 				}
@@ -103,7 +106,7 @@ func BotRoute()  {
 	})
 	bot.Handle("/review", func(m *tb.Message) {
 		message:=strings.ReplaceAll(m.Text,"/review","")
-		vList,err:=VocabularyReview(m.Sender,message)
+		vList,err:=VocabularyReview(m.Sender.ID,message)
 		if err!=nil{
 			bot.Send(m.Sender, fmt.Sprintf("Server error, please retry later %s",err.Error()))
 			return
@@ -207,10 +210,10 @@ func BotRoute()  {
 				}else{
 					bot.Send(m.Sender, "From google translate : " + result)
 				}
-				VocabularyEnd(m.Sender)
+				VocabularyEnd(m.Sender.ID)
 			default:
 				bot.Send(m.Sender, "User wait type value is error, please retry")
-				VocabularyEnd(m.Sender)
+				VocabularyEnd(m.Sender.ID)
 		}
 	})
 
