@@ -6,6 +6,7 @@ import (
 	"gopkg.in/tucnak/telebot.v2"
 	"strings"
 	"telegram_bot/com/trples/bot/dao"
+	"time"
 )
 
 
@@ -63,8 +64,9 @@ func VocabularyAddReceive(sender *telebot.User,message string) (error){
 		vocabulary.IsRemember = false
 		vocabulary.LearnStatus = dao.Waiting
 		vocabulary.ReviewStatus = dao.FAIL
-		vocabulary.Period = 24
+		vocabulary.Period = 2
 		vocabulary.ReminderCount = 0
+		vocabulary.LatestReviewAt = time.Now().UnixMilli() + 2*60*60*1000
 		vocabulary.UserId = int64(sender.ID)
 		_,err:=dao.VocabularySave(ctx,client,vocabulary)
 		if err != nil{
@@ -108,25 +110,47 @@ func VocabularyAddReceive(sender *telebot.User,message string) (error){
 
 
 
-func VocabularyReview(sender *telebot.User,word string) (error){
+func VocabularyReview(sender *telebot.User,word string) ([]string,error){
 	word = strings.ToLower(strings.Trim(word," "))
+	results:=[]string{word}
+	if word==""{
+		return VocabularyReviewAll(sender)
+	}
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{
-		return err
+		return results,err
 	}
 	defer dao.CloseClient(ctx,client)
 	vocabulary,err:=dao.VocabularyGet(ctx,client,int64(sender.ID),word)
 	if err!=nil{
-		return err
+		return results,err
 	}
 	if vocabulary.LearnStatus == dao.Learning {
-		return errors.New(fmt.Sprintf("%s is reviewing\n",word))
+		return results,errors.New(fmt.Sprintf("%s is reviewing\n",word))
 	}
 	dao.VocabularyUpdateLearnStatus(ctx,client,int64(sender.ID),word,dao.Learning)
 	dao.SentenceUpdateStatusByWord(ctx,client,int64(sender.ID),word,dao.FAIL)
-	return dao.UserStartInput(ctx,client,int64(sender.ID),dao.Review)
+	return results,dao.UserStartInput(ctx,client,int64(sender.ID),dao.Review)
 }
 
+func VocabularyReviewAll(sender *telebot.User) ([]string,error){
+	ctx,client,err:=dao.GetClient()
+	var vLits []string
+
+	if err!=nil{
+		return vLits,err
+	}
+	defer dao.CloseClient(ctx,client)
+	err= dao.UserStartInput(ctx,client,int64(sender.ID),dao.Review)
+	result,err:=dao.VocabularyFindByReview(ctx,client,int64(sender.ID))
+	if err==nil{
+		for _,v:=range result {
+			vLits = append(vLits,v.Word)
+		}
+	}
+
+	return vLits,err
+}
 
 //only delete the sentence
 func VocabularyReviewReceive(sender *telebot.User,message string) (ReviewResult,error){
@@ -219,7 +243,7 @@ func VocabularyEndReview(sender *telebot.User,word string) (ReviewResult,error){
 	}
 	defer dao.CloseClient(ctx,client)
 
-	_,err=dao.VocabularyGet(ctx,client,int64(sender.ID),word)
+	vocab,err:=dao.VocabularyGet(ctx,client,int64(sender.ID),word)
 	if err != nil{
 		return ReviewResult{},err
 	}
@@ -240,8 +264,7 @@ func VocabularyEndReview(sender *telebot.User,word string) (ReviewResult,error){
 	}
 
 	if reviewResult.Total == reviewResult.Pass {
-		dao.VocabularyUpdateLearnStatus(ctx,client,int64(sender.ID),word,dao.Finished)
-		dao.VocabularyUpdateStatus(ctx,client,int64(sender.ID),word,dao.PASS)
+		dao.VocabularyReviewCompleted(ctx,client,int64(sender.ID),vocab)
 		err= dao.UserEndInput(ctx,client,int64(sender.ID))
 		return reviewResult,err
 	}

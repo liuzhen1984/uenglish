@@ -17,6 +17,7 @@ func main(){
 		}
 	}
 	domain.LoadProperties(fileName)
+	service.TaskRun()
 	service.BotRoute()
 	//web.WebBoot()
 }

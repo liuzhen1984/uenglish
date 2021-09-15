@@ -5,193 +5,227 @@ import (
 	tb "gopkg.in/tucnak/telebot.v2"
 	"log"
 	"strings"
+	"sync"
 	domain "telegram_bot/com/trples/bot/config"
 	"telegram_bot/com/trples/bot/dao"
 	"time"
 )
 
-func BotRoute()  {
+var bot *tb.Bot
+var once sync.Once
+
+func GetBot() *tb.Bot{
 	config:=domain.LoadProperties()
+	once.Do(func() {
+		bot = &tb.Bot{}
+		var err error
+		bot,err = tb.NewBot(tb.Settings{
+			// You can also set custom API URL.
+			// If field is empty it equals to "https://api.telegram.org".
+			//URL: "http://195.129.111.17:8012",
 
-	b, err := tb.NewBot(tb.Settings{
-		// You can also set custom API URL.
-		// If field is empty it equals to "https://api.telegram.org".
-		//URL: "http://195.129.111.17:8012",
-
-		Token:  config.BotToken,
-		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
+			Token:  config.BotToken,
+			Poller: &tb.LongPoller{Timeout: 10 * time.Second},
+		})
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
 	})
+	return bot
+}
+func Send(userId int, message string)  {
+	user := tb.User{}
+	user.ID=userId
+	bot.Send(&user,message)
+}
 
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-
-	b.Handle("/start", func(m *tb.Message) {
+func BotRoute()  {
+	GetBot()
+	bot.Handle("/test", func(m *tb.Message) {
+		Send(1470647544,"test")
+	})
+	bot.Handle("/start", func(m *tb.Message) {
 		if !m.Private() {
 			fmt.Printf("username= %s,%s,id=%d, is private \n",m.Sender.FirstName,m.Sender.LastName,m.Sender.ID)
 			return
 		}
 		err := UserNewOrExisting(m.Sender)
 		if err!=nil {
-			b.Send(m.Sender,fmt.Sprintf("Welcome %s %s to add learning english bot, but init user failed",m.Sender.FirstName,m.Sender.LastName))
+			bot.Send(m.Sender,fmt.Sprintf("Welcome %s %s to add learning english bot, but init user failed",m.Sender.FirstName,m.Sender.LastName))
 			return
 		}
-		b.Send(m.Sender,fmt.Sprintf("Welcome %s %s to add learning english bot.",m.Sender.FirstName,m.Sender.LastName))
+		bot.Send(m.Sender,fmt.Sprintf("Welcome %s %s to add learning english bot.",m.Sender.FirstName,m.Sender.LastName))
 	})
 
 
-	b.Handle("/stop", func(m *tb.Message) {
+	bot.Handle("/stop", func(m *tb.Message) {
 		err := UserStop(m.Sender)
 		if err!=nil {
-			b.Send(m.Sender,fmt.Sprintf("You haven't stopped all reminder"))
+			bot.Send(m.Sender,fmt.Sprintf("You haven't stopped all reminder"))
 			return
 		}
-		b.Send(m.Sender,fmt.Sprintf("You have stopped all reminder"))
+		bot.Send(m.Sender,fmt.Sprintf("You have stopped all reminder"))
 	})
 
-	b.Handle("/add", func(m *tb.Message) {
+	bot.Handle("/add", func(m *tb.Message) {
 		err:=VocabularyAdd(m.Sender)
 		if err!=nil{
-			b.Send(m.Sender, fmt.Sprintf("Server error, please retry later: %s ",err))
+			bot.Send(m.Sender, fmt.Sprintf("Server error, please retry later: %s ",err))
 			return
 		}
-		b.Send(m.Sender, "Begin add your input [word:sentence]:")
+		bot.Send(m.Sender, "Begin add your input [word:sentence]:")
 	})
-	b.Handle("/end", func(m *tb.Message) {
+	bot.Handle("/end", func(m *tb.Message) {
 		//	//Receive new words, and sentences | update words and sentences | Review words
 		message:=strings.ReplaceAll(m.Text,"/end","")
 		user:=UserGet(int64(m.Sender.ID))
 		switch user.WaitType {
 			case dao.Review:
 				if message == ""{
-					b.Send(m.Sender, "Please enter the word you want to end")
+					bot.Send(m.Sender, "Please enter the word you want to end")
 					return
 				}
 				result,err:=VocabularyEndReview(m.Sender,message)
 				if err!=nil{
-					b.Send(m.Sender, fmt.Sprintf("error: %s, total:%d, pass:%d",err.Error(),result.Total,result.Pass))
+					bot.Send(m.Sender, fmt.Sprintf("error: %s, total:%d, pass:%d",err.Error(),result.Total,result.Pass))
 					return
 				}
-				b.Send(m.Sender, fmt.Sprintf("Review word: %s completed, total:%d, pass:%d",message,result.Total,result.Pass))
+				bot.Send(m.Sender, fmt.Sprintf("Review word: %s completed, total:%d, pass:%d",message,result.Total,result.Pass))
 			default:
 				err:=VocabularyEnd(m.Sender)
 				if err!=nil{
-					b.Send(m.Sender, fmt.Sprintf("Server error, please retry later: %s ",err))
+					bot.Send(m.Sender, fmt.Sprintf("Server error, please retry later: %s ",err))
 				}
-				b.Send(m.Sender, "===End Successful===")
+				bot.Send(m.Sender, "===End Successful===")
 		}
 
 	})
-	b.Handle("/review", func(m *tb.Message) {
+	bot.Handle("/review", func(m *tb.Message) {
 		message:=strings.ReplaceAll(m.Text,"/review","")
-		err:=VocabularyReview(m.Sender,message)
+		vList,err:=VocabularyReview(m.Sender,message)
 		if err!=nil{
-			b.Send(m.Sender, fmt.Sprintf("Server error, please retry later %s",err.Error()))
+			bot.Send(m.Sender, fmt.Sprintf("Server error, please retry later %s",err.Error()))
 			return
 		}
-		b.Send(m.Sender, "Begin review your input [word:sentence]:")
+		bot.Send(m.Sender, "Begin review your input [word:sentence]:")
+		for _,v:=range vList{
+			bot.Send(m.Sender,v)
+		}
 	})
-	b.Handle("/update", func(m *tb.Message) {
+	bot.Handle("/update", func(m *tb.Message) {
 		err:=VocabularyUpdate(m.Sender)
 		if err!=nil{
-			b.Send(m.Sender, "Server error, please retry later")
+			bot.Send(m.Sender, "Server error, please retry later")
 		}
-		b.Send(m.Sender, "Begin update your [word:sentence]")
+		bot.Send(m.Sender, "Begin update your [word:sentence]")
 	})
-	b.Handle("/get", func(m *tb.Message) {
+	bot.Handle("/get", func(m *tb.Message) {
 		message:=strings.ReplaceAll(m.Text,"/get","")
 		vocabulary,err:=VocabularyGet(m.Sender.ID,message)
 		if err!=nil {
-			b.Send(m.Sender, fmt.Sprintf("%s doesn't exist",m.Text))
+			bot.Send(m.Sender, fmt.Sprintf("%s doesn't exist",m.Text))
 			return
 		}
-		b.Send(m.Sender,fmt.Sprintf("%s, the status is %s, review is %s",vocabulary.Word,vocabulary.LearnStatus,vocabulary.ReviewStatus))
+		bot.Send(m.Sender,fmt.Sprintf("%s, the status is %s, review is %s",vocabulary.Word,vocabulary.LearnStatus,vocabulary.ReviewStatus))
 		sentences,err:=SentenceFindByWord(m.Sender.ID,message)
 		if err!=nil {
-			b.Send(m.Sender, fmt.Sprintf("%s doesn't have sentences",m.Text))
+			bot.Send(m.Sender, fmt.Sprintf("%s doesn't have sentences",m.Text))
 			return
 		}
 		for _,v:=range sentences{
-			b.Send(m.Sender,fmt.Sprintf("%s : %s",v.Word,v.Sentence))
+			bot.Send(m.Sender,fmt.Sprintf("%s : %s",v.Word,v.Sentence))
 		}
 	})
-	b.Handle("/schedule", func(m *tb.Message) {
-		b.Send(m.Sender, "Hello schedule!")
+	bot.Handle("/schedule", func(m *tb.Message) {
+		bot.Send(m.Sender, "Hello schedule!")
 	})
 
-	b.Handle("/delete", func(m *tb.Message) {
+	bot.Handle("/delete", func(m *tb.Message) {
 		message:=strings.ReplaceAll(m.Text,"/delete","")
 
 		fmt.Printf(" delete %s\n",message)
 		VocabularyDeleteByWord(m.Sender.ID,message)
-		b.Send(m.Sender, "You will delete vocabulary "+m.Text)
+		bot.Send(m.Sender, "You will delete vocabulary "+m.Text)
+	})
+	bot.Handle("/lang", func(m *tb.Message) {
+		message:=strings.ReplaceAll(m.Text,"/lang","")
+
+		fmt.Printf(" lang %s\n",message)
+		UserUpdateLang(m.Sender,message)
+		bot.Send(m.Sender, "You will delete vocabulary "+m.Text)
 	})
 
-	b.Handle("/t", func(m *tb.Message) {
+	bot.Handle("/t", func(m *tb.Message) {
 		err:=DictionaryTranslateStart(m.Sender)
 		if err!=nil{
-			b.Send(m.Sender, fmt.Sprintf("Server error, please retry later: %s ",err))
+			bot.Send(m.Sender, fmt.Sprintf("Server error, please retry later: %s ",err))
 			return
 		}
-		b.Send(m.Sender, "Begin add your input sentence:")
+		bot.Send(m.Sender, "Begin add your input sentence:")
 	})
 
-	b.Handle("/longman", func(m *tb.Message) {
+	bot.Handle("/longman", func(m *tb.Message) {
 		message:=strings.ReplaceAll(m.Text,"/longman","")
 
 		fmt.Printf(" longman %s\n",message)
 		result:=DictionaryLongman(m.Sender.ID,message)
-		b.Send(m.Sender, "From longman dictionary : " + result)
+		bot.Send(m.Sender, "From longman dictionary : " + result)
 	})
 
-	b.Handle(tb.OnText, func(m *tb.Message) {
+	bot.Handle(tb.OnText, func(m *tb.Message) {
 		user:=UserGet(int64(m.Sender.ID))
 		if !user.IsInput {
-			b.Send(m.Sender, fmt.Sprintf("Your status is error waitType=%s",user.WaitType))
+			bot.Send(m.Sender, fmt.Sprintf("Your status is error waitType=%s",user.WaitType))
 		}
 		switch user.WaitType {
 			case dao.Add:
 				err:=VocabularyAddReceive(m.Sender,m.Text)
 				if err!=nil{
-					b.Send(m.Sender, "Server error, please retry later")
+					bot.Send(m.Sender, "Server error, please retry later")
 					return
 				}
-				b.Send(m.Sender, fmt.Sprintf("Add vocabulary %s successful",m.Text))
+				bot.Send(m.Sender, fmt.Sprintf("Add vocabulary %s successful",m.Text))
 			case dao.Update:
 				err:=VocabularyUpdateReceive(m.Sender,m.Text)
 				if err!=nil{
-					b.Send(m.Sender, fmt.Sprintf("Server error, please retry later %s",err))
+					bot.Send(m.Sender, fmt.Sprintf("Server error, please retry later %s",err))
 					return
 				}
-				b.Send(m.Sender, fmt.Sprintf("Add vocabulary %s successful",m.Text))
+				bot.Send(m.Sender, fmt.Sprintf("Add vocabulary %s successful",m.Text))
 			case dao.Review:
 				result,err:=VocabularyReviewReceive(m.Sender,m.Text)
 				if err!=nil{
-					b.Send(m.Sender, fmt.Sprintf("Review word: %s %t, total:%d, pass:%d",result.Word,result.Result,result.Total,result.Pass))
+					bot.Send(m.Sender, fmt.Sprintf("Review word: %s %t, total:%d, pass:%d",result.Word,result.Result,result.Total,result.Pass))
 				}else{
-					b.Send(m.Sender, fmt.Sprintf("Review word: %s %t, total:%d, pass:%d",result.Word,result.Result,result.Total,result.Pass))
+					bot.Send(m.Sender, fmt.Sprintf("Review word: %s %t, total:%d, pass:%d",result.Word,result.Result,result.Total,result.Pass))
 				}
 			case dao.Translate:
-				result:=DictionaryTranslate(m.Sender.ID,m.Text)
-				b.Send(m.Sender, "From google translate dictionary : " + result)
+				result,err:=DictionaryTranslate(m.Sender.ID,m.Text)
+				if err!=nil{
+					bot.Send(m.Sender, fmt.Sprintf("Translate failed from google : %s, error %s" , result,err))
+				}else{
+					bot.Send(m.Sender, "From google translate : " + result)
+				}
 				VocabularyEnd(m.Sender)
 			default:
-				b.Send(m.Sender, "User wait type value is error, please retry")
+				bot.Send(m.Sender, "User wait type value is error, please retry")
 				VocabularyEnd(m.Sender)
 		}
 	})
 
-	b.Handle(tb.OnPhoto, func(m *tb.Message) {
+	bot.Handle(tb.OnPhoto, func(m *tb.Message) {
 		// photos only
 	})
 
-	b.Handle(tb.OnChannelPost, func (m *tb.Message) {
+	bot.Handle(tb.OnChannelPost, func (m *tb.Message) {
 		// channel posts only
 	})
 
-	b.Handle(tb.OnQuery, func (q *tb.Query) {
+	bot.Handle(tb.OnQuery, func (q *tb.Query) {
 	})
 
-	b.Start()
+	bot.Start()
 }
+
+

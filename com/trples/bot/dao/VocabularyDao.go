@@ -45,6 +45,7 @@ type Vocabulary struct {
 	UserId 			 int64 					`bson:"user_id,omitempty"`
 	Period			 int64 					`bson:"period,omitempty"`  //unit is hour
 	ReminderCount	 int64  				`bson:"reminder_count,omitempty"`
+	LatestReviewAt	 int64					`bson:"latest_review_at,omitempty"`
 	CreateAt	 	 int64					`bson:"create_at,omitempty"`
 	UpdatedAt		 int64					`bson:"updated_at,omitempty"`
 }
@@ -153,6 +154,38 @@ func SentenceSave(ctx context.Context, client *mongo.Client,sentence Sentences) 
 }
 
 
+func VocabularyFindByReview(ctx context.Context, client *mongo.Client,userId int64) ([]Vocabulary,error){
+	if err := client.Ping(ctx, readpref.Primary()); err != nil {
+		panic(err)
+	}
+
+	database := client.Database(domain.LoadProperties().MongodbDatase)
+	collection := database.Collection(Collection_Vocabulary)
+	where:= bson.D{
+		{"user_id",userId},
+		{"is_remember",false},
+		{"learn_status",Learning},
+		}
+	cursor,err:=collection.Find(ctx,where)
+	var vocabularyList []Vocabulary
+	if err!=nil{
+		return vocabularyList,err
+	}
+	defer cursor.Close(ctx)
+	for cursor.Next(ctx) {
+		var vocabulary Vocabulary
+		if err := cursor.Decode(&vocabulary); err != nil {
+			log.Fatal(err)
+			continue
+		}
+		vocabularyList = append(vocabularyList, vocabulary)
+		if len(vocabularyList)>10{
+			break
+		}
+	}
+	return vocabularyList,nil
+}
+
 func VocabularyGet(ctx context.Context, client *mongo.Client,userId int64,word string) (Vocabulary,error){
 	if err := client.Ping(ctx, readpref.Primary()); err != nil {
 		panic(err)
@@ -232,7 +265,8 @@ func VocabularyUpdateStatus(ctx context.Context, client *mongo.Client,userId int
 	}
 	database := client.Database(domain.LoadProperties().MongodbDatase)
 	collection := database.Collection(Collection_Vocabulary)
-	_,err:=collection.UpdateOne(ctx,bson.M{"user_id":userId,"word":word},bson.D{{"$set",bson.M{"review_status":status,"input_updated_at":time.Now().UnixMilli()}}})
+	_,err:=collection.UpdateOne(ctx,bson.M{"user_id":userId,"word":word},
+		bson.D{{"$set",bson.M{"review_status":status,"input_updated_at":time.Now().UnixMilli()}}})
 	if(err!=nil){
 		fmt.Println(err)
 	}
@@ -246,6 +280,21 @@ func VocabularyUpdateLearnStatus(ctx context.Context, client *mongo.Client,userI
 	database := client.Database(domain.LoadProperties().MongodbDatase)
 	collection := database.Collection(Collection_Vocabulary)
 	_,err:=collection.UpdateOne(ctx,bson.M{"user_id":userId,"word":word},bson.D{{"$set",bson.M{"learn_status":status,"input_updated_at":time.Now().UnixMilli()}}})
+	if(err!=nil){
+		fmt.Println(err)
+	}
+	return err
+}
+
+func VocabularyReviewCompleted(ctx context.Context, client *mongo.Client,userId int64,word Vocabulary)  error{
+	if err := client.Ping(ctx, readpref.Primary()); err != nil {
+		panic(err)
+	}
+	database := client.Database(domain.LoadProperties().MongodbDatase)
+	collection := database.Collection(Collection_Vocabulary)
+	_,err:=collection.UpdateOne(ctx,bson.M{"user_id":userId,"word":word},
+		bson.D{{"$set",bson.M{"review_status":PASS,"input_updated_at":time.Now().UnixMilli(),"learn_status":Finished,
+			"latest_review_at":time.Now().UnixMilli()+word.Period*60*60*1000,"reminder_count":word.ReminderCount+1}}})
 	if(err!=nil){
 		fmt.Println(err)
 	}

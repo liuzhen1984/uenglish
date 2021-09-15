@@ -30,6 +30,16 @@ func UserUpdateSchedule(sender *telebot.User,schedule string)  error{
 	return err
 }
 
+func UserUpdateLang(sender *telebot.User,lang string)  error{
+	ctx,client,err:=dao.GetClient()
+	if err!=nil{
+		return err
+	}
+	defer dao.CloseClient(ctx,client)
+	err=dao.UserSetLang(ctx,client,int64(sender.ID),lang)
+	return err
+}
+
 func UserStop(sender *telebot.User)  error{
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{
@@ -66,6 +76,7 @@ func UserNewOrExisting(sender *telebot.User) (error){
 		user.IsEnable = true
 		user.IsDelay = false
 		user.DelayToTime = -1
+		user.ReminderAt = -1
 		dao.UserSave(ctx,client,user)
 		return err
 	}

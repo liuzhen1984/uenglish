@@ -30,6 +30,7 @@ type UserConfig struct {
 	IsInput		 bool	`bson:"is_input,omitempty"`
 	//Receive new words, and sentences | update words and sentences | Review words
 	WaitType	 WaitTypeEnum	  `bson:"wait_type,omitempty"`
+	ReminderAt	int64 	`bson:"reminder_at,omitempty"`
 	InputUpdatedAt	int64 `bson:"input_updated_at,omitempty"`
 	CreateAt	 int64	`bson:"create_at,omitempty"`
 	UpdatedAt	 int64	`bson:"updated_at,omitempty"`
@@ -65,6 +66,41 @@ func UserFindByDelay(ctx context.Context, client *mongo.Client) ([]UserConfig,er
 	}
 	return userConfigList,err
 }
+
+
+func UserFind(ctx context.Context, client *mongo.Client,filter interface{}) ([]UserConfig,error){
+	if err := client.Ping(ctx, readpref.Primary()); err != nil {
+		panic(err)
+	}
+
+	database := client.Database(domain.LoadProperties().MongodbDatase)
+	collection := database.Collection(Collection_user)
+
+	opts := options.Find()
+	opts.SetSort(bson.D{{"delay_to_time", -1}})
+
+	cursor,err:=collection.Find(ctx,filter,opts)
+
+	var userConfigList []UserConfig
+	if(err!=nil){
+		fmt.Println(err)
+		return userConfigList,err
+	}
+	defer cursor.Close(ctx)
+	for cursor.Next(ctx) {
+		var userConfig UserConfig
+		if err := cursor.Decode(&userConfig); err != nil {
+			log.Fatal(err)
+			continue
+		}
+		userConfigList = append(userConfigList, userConfig)
+		if len(userConfigList)>10 {
+			break
+		}
+	}
+	return userConfigList,err
+}
+
 
 
 func UserGet(ctx context.Context, client *mongo.Client,userId int64) (UserConfig,error){
@@ -120,6 +156,18 @@ func UserUpdateByUserId(ctx context.Context, client *mongo.Client,userId int64,u
 	return result.ModifiedCount,nil
 }
 
+func UserSetLang(ctx context.Context, client *mongo.Client,userId int64,langeCode string) error{
+	if err := client.Ping(ctx, readpref.Primary()); err != nil {
+		panic(err)
+	}
+	database := client.Database(domain.LoadProperties().MongodbDatase)
+	collection := database.Collection(Collection_user)
+	_,err:=collection.UpdateOne(ctx,bson.M{"user_id":userId},bson.D{{"$set",bson.M{"language_code":langeCode,"updated_at":time.Now().UnixMilli()}}})
+	if(err!=nil){
+		fmt.Println(err)
+	}
+	return err
+}
 func UserSetEmail(ctx context.Context, client *mongo.Client,userId int64,email string) error{
 	if err := client.Ping(ctx, readpref.Primary()); err != nil {
 		panic(err)

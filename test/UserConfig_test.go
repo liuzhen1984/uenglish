@@ -69,7 +69,7 @@ func TestUserDelay(t *testing.T)  {
 	}
 	defer dao.CloseClient(ctx,client)
 
-	dao.UserDelay(ctx,client,123,true,time.Now().UnixMilli())
+	dao.UserDelay(ctx,client,1934978298,true,time.Now().UnixMilli())
 }
 func TestUserDiableDelay(t *testing.T)  {
 	ctx,client,err:=dao.GetClient()
@@ -77,7 +77,7 @@ func TestUserDiableDelay(t *testing.T)  {
 		panic(err)
 	}
 	defer dao.CloseClient(ctx,client)
-	dao.UserDelay(ctx,client,123,false,-1)
+	dao.UserDelay(ctx,client,1934978298,false,-1)
 }
 
 func TestUserUpdateEmail(t *testing.T)  {
