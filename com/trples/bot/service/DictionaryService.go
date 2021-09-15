@@ -1,7 +1,9 @@
 package service
 
 import (
+	"fmt"
 	"gopkg.in/tucnak/telebot.v2"
+	"net/url"
 	"strings"
 	"telegram_bot/com/trples/bot/dao"
 )
@@ -32,5 +34,6 @@ func DictionaryTranslate(userId int,text string) (string,error)  {
 	if err!=nil{
 		return text,err
 	}
-	return text,err
+	urlAddress:="https://translate.google.com/?sl=en&tl=zh-CN&text=%s&op=translate"
+	return fmt.Sprintf(urlAddress,url.PathEscape(text)),err
 }

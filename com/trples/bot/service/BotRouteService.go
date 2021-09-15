@@ -43,7 +43,7 @@ func Send(userId int, message string)  {
 func BotRoute()  {
 	GetBot()
 	bot.Handle("/test", func(m *tb.Message) {
-		Send(1470647544,"test")
+		Send(1470647544,fmt.Sprintf("Test sender %s %s, send message %s",m.Sender.FirstName,m.Sender.LastName,m.Text))
 	})
 	bot.Handle("/start", func(m *tb.Message) {
 		if !m.Private() {
@@ -174,6 +174,7 @@ func BotRoute()  {
 		fmt.Printf(" longman %s\n",message)
 		result:=DictionaryLongman(m.Sender.ID,message)
 		bot.Send(m.Sender, "From longman dictionary : " + result)
+		bot.Send(m.Sender, "https://www.ldoceonline.com/dictionary/" + strings.ToLower(strings.Trim(result, " ")))
 	})
 
 	bot.Handle(tb.OnText, func(m *tb.Message) {
@@ -208,7 +209,8 @@ func BotRoute()  {
 				if err!=nil{
 					bot.Send(m.Sender, fmt.Sprintf("Translate failed from google : %s, error %s" , result,err))
 				}else{
-					bot.Send(m.Sender, "From google translate : " + result)
+					bot.Send(m.Sender, "From google translate : " )
+					bot.Send(m.Sender, result )
 				}
 				VocabularyEnd(m.Sender.ID)
 			default:
