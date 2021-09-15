@@ -153,6 +153,34 @@ func SentenceSave(ctx context.Context, client *mongo.Client,sentence Sentences) 
 	return result.InsertedID,nil
 }
 
+func VocabularyFind(ctx context.Context, client *mongo.Client,filter bson.D) ([]Vocabulary,error){
+	if err := client.Ping(ctx, readpref.Primary()); err != nil {
+		panic(err)
+	}
+
+	database := client.Database(domain.LoadProperties().MongodbDatase)
+	collection := database.Collection(Collection_Vocabulary)
+
+
+	cursor,err:=collection.Find(ctx,filter)
+	var vocabularyList []Vocabulary
+	if err!=nil{
+		return vocabularyList,err
+	}
+	defer cursor.Close(ctx)
+	for cursor.Next(ctx) {
+		var vocabulary Vocabulary
+		if err := cursor.Decode(&vocabulary); err != nil {
+			log.Fatal(err)
+			continue
+		}
+		vocabularyList = append(vocabularyList, vocabulary)
+		if len(vocabularyList)>10{
+			break
+		}
+	}
+	return vocabularyList,nil
+}
 
 func VocabularyFindByReview(ctx context.Context, client *mongo.Client,userId int64) ([]Vocabulary,error){
 	if err := client.Ping(ctx, readpref.Primary()); err != nil {

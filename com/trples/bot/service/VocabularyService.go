@@ -323,6 +323,11 @@ func VocabularyEndAllReview(userId int) (ReviewResult,error){
 			reviewResult.Pass = reviewResult.Pass+1
 			continue
 		}
+		if reviewResult.Word!=""{
+			reviewResult.Word = reviewResult.Word +", "+vocabulary.Word
+		} else{
+			reviewResult.Word = vocabulary.Word
+		}
 	}
 	fmt.Printf("user count %d \n",count)
 	reviewResult.Pass = reviewResult.Total-reviewResult.Pass
@@ -344,4 +349,25 @@ func SentenceFindByWord(userId int, word string) ([]dao.Sentences,error){
 	}
 
 	return dao.SentenceFindByWord(ctx,client,int64(userId),word)
+}
+
+
+func VocabularyFindByUserId(userId int) ([]dao.Vocabulary,error){
+	ctx,client,err:=dao.GetClient()
+	vocabularyList:=[]dao.Vocabulary{}
+	if err!=nil{
+		return vocabularyList,err
+	}
+	defer dao.CloseClient(ctx,client)
+	where:= bson.D{
+		{"user_id",userId},
+		//{
+		//	"$or",bson.A{
+		//	bson.D{{"is_remember",false}},
+		//	bson.D{{"is_remember",nil}},
+		//},
+		//},
+		//{"learn_status",Learning},
+	}
+	return dao.VocabularyFind(ctx,client,where)
 }

@@ -58,6 +58,17 @@ func BotRoute()  {
 		bot.Send(m.Sender,fmt.Sprintf("Welcome %s %s to add learning english bot.",m.Sender.FirstName,m.Sender.LastName))
 	})
 
+	bot.Handle("/list",func(m *tb.Message) {
+		vList,err:=VocabularyFindByUserId(m.Sender.ID)
+		if err!=nil{
+			bot.Send(m.Sender,fmt.Sprintf("Cannot get anything vocabularies."))
+			return
+		}
+		bot.Send(m.Sender,fmt.Sprintf("You have added vocabularies:"))
+		for _,v:=range vList{
+			bot.Send(m.Sender,fmt.Sprintf("%s , review: %s, review count: %d",v.Word,v.ReviewStatus,v.ReminderCount))
+		}
+	})
 
 	bot.Handle("/stop", func(m *tb.Message) {
 		err := UserStop(m.Sender)
@@ -94,7 +105,11 @@ func BotRoute()  {
 					bot.Send(m.Sender, fmt.Sprintf("error: %s, total:%d, pass:%d",err.Error(),result.Total,result.Pass))
 					return
 				}
-				bot.Send(m.Sender, fmt.Sprintf("Review word: %s completed, total:%d, pass:%d",message,result.Total,result.Pass))
+				if message == ""{
+					bot.Send(m.Sender, fmt.Sprintf("Review word: %s completed, total:%d, pass:%d",result.Word,result.Total,result.Pass))
+				} else{
+					bot.Send(m.Sender, fmt.Sprintf("Review %s 's sentences [total:%d, pass:%d]",result.Word,result.Total,result.Pass))
+				}
 			default:
 				err:=VocabularyEnd(m.Sender.ID)
 				if err!=nil{
@@ -111,7 +126,15 @@ func BotRoute()  {
 			bot.Send(m.Sender, fmt.Sprintf("Server error, please retry later %s",err.Error()))
 			return
 		}
-		bot.Send(m.Sender, "Begin review your input [word:sentence]:")
+		if len(vList)<=0 {
+			bot.Send(m.Sender,"No need to review vocabularies")
+			err:=VocabularyEnd(m.Sender.ID)
+			if err!=nil{
+				bot.Send(m.Sender, fmt.Sprintf("End all review error: %s ",err))
+			}
+			return
+		}
+		bot.Send(m.Sender, "Begin review these vocabularies:")
 		for _,v:=range vList{
 			bot.Send(m.Sender,v)
 		}
