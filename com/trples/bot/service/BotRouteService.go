@@ -115,7 +115,11 @@ func BotRoute()  {
 				if err!=nil{
 					bot.Send(m.Sender, fmt.Sprintf("Server error, please retry later: %s ",err))
 				}
-				bot.Send(m.Sender, "===End Successful===")
+				if user.WaitType!=""{
+					bot.Send(m.Sender, fmt.Sprintf("Operation [%s] finished",user.WaitType))
+				}else{
+					bot.Send(m.Sender, "Nothing...")
+				}
 		}
 
 	})
@@ -214,12 +218,16 @@ func BotRoute()  {
 				}
 				bot.Send(m.Sender, fmt.Sprintf("Add vocabulary %s successful",m.Text))
 			case dao.Update:
-				err:=VocabularyUpdateReceive(m.Sender,m.Text)
+				count,err:=VocabularyUpdateReceive(m.Sender,m.Text)
 				if err!=nil{
 					bot.Send(m.Sender, fmt.Sprintf("Server error, please retry later %s",err))
 					return
 				}
-				bot.Send(m.Sender, fmt.Sprintf("Add vocabulary %s successful",m.Text))
+				if count>0{
+					bot.Send(m.Sender, fmt.Sprintf("Updated the vocabulary %s successful",m.Text))
+				} else{
+					bot.Send(m.Sender, fmt.Sprintf("Didn't update for the vocabulary %s",m.Text))
+				}
 			case dao.Review:
 				result,err:=VocabularyReviewReceive(m.Sender,m.Text)
 				if err!=nil{

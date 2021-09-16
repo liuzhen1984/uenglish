@@ -210,10 +210,10 @@ func VocabularyUpdate(sender *telebot.User) (error){
 }
 
 //only delete the sentence
-func VocabularyUpdateReceive(sender *telebot.User,message string) (error){
+func VocabularyUpdateReceive(sender *telebot.User,message string) (int64,error){
 	ctx,client,err:=dao.GetClient()
 	if err!=nil{
-		return err
+		return 0,err
 	}
 	defer dao.CloseClient(ctx,client)
 	words := strings.Split(message,":")
@@ -221,13 +221,11 @@ func VocabularyUpdateReceive(sender *telebot.User,message string) (error){
 	sent:=strings.ToLower(strings.Trim(words[1]," "))
 	_,err=dao.VocabularyGet(ctx,client,int64(sender.ID),word)
 	if err != nil{
-		return err
+		return 0,err
 	}
-	_,err=dao.SentencesDeleteBySentence(ctx,client,int64(sender.ID),word,sent)
-	if err != nil{
-		return err
-	}
-	return nil
+	count,err:=dao.SentencesDeleteBySentence(ctx,client,int64(sender.ID),word,sent)
+
+	return count,err
 }
 
 func VocabularyEnd(userId int) (error){
