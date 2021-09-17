@@ -356,7 +356,7 @@ func VocabularyUpdatePeriod(ctx context.Context, client *mongo.Client,userId int
 	}
 	database := client.Database(domain.LoadProperties().MongodbDatase)
 	collection := database.Collection(Collection_Vocabulary)
-	_,err:=collection.UpdateOne(ctx,bson.M{"user_id":userId,"word":word},bson.D{{"$set",bson.M{"reminder_count":count,"period":period,"input_updated_at":time.Now().UnixMilli()}}})
+	_,err:=collection.UpdateOne(ctx,bson.M{"user_id":userId,"word":word},bson.D{{"$set",bson.M{"reminder_count":count,"period":period,"latest_review_at":time.Now().UnixMilli(),"input_updated_at":time.Now().UnixMilli()}}})
 	if(err!=nil){
 		fmt.Println(err)
 	}

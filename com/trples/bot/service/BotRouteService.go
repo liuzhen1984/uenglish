@@ -217,9 +217,9 @@ func BotRoute()  {
 	})
 
 	bot.Handle("/reset", func(m *tb.Message) {
-		message:=strings.ReplaceAll(m.Text,"/remember","")
+		message:=strings.ReplaceAll(m.Text,"/reset","")
 
-		fmt.Printf(" remember %s\n",message)
+		fmt.Printf(" reset %s\n",message)
 		result:=VocabularyReset(m.Sender.ID,message)
 		if result!=nil {
 			bot.Send(m.Sender, fmt.Sprintf("Reset the vocabulary [%s] operate failed %s",message,result))
