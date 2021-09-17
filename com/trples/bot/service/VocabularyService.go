@@ -57,7 +57,10 @@ func VocabularyAddReceive(sender *telebot.User,message string) (error){
 		return err
 	}
 	defer dao.CloseClient(ctx,client)
-	words := strings.Split(message,":")
+	words,err:= judgeMessageFormat(message)
+	if err!=nil{
+		return err
+	}
 	word:= strings.ToLower(strings.Trim(words[0]," "))
 	sent:=strings.ToLower(strings.Trim(words[1]," "))
 	vocabulary,err:=dao.VocabularyGet(ctx,client,int64(sender.ID),word)
@@ -170,9 +173,9 @@ func VocabularyReviewReceive(sender *telebot.User,message string) (ReviewResult,
 		return ReviewResult{},err
 	}
 	defer dao.CloseClient(ctx,client)
-	words := strings.Split(message,":")
-	if len(words)<2{
-		return ReviewResult{},errors.New("You typed format wrong, please retype:")
+	words,err:= judgeMessageFormat(message)
+	if err!=nil{
+		return ReviewResult{},err
 	}
 	word:=strings.ToLower(strings.Trim(words[0]," "))
 	sent:=strings.ToLower(strings.Trim(words[1]," "))
@@ -226,7 +229,10 @@ func VocabularyUpdateReceive(sender *telebot.User,message string) (int64,error){
 		return 0,err
 	}
 	defer dao.CloseClient(ctx,client)
-	words := strings.Split(message,":")
+	words,err:= judgeMessageFormat(message)
+	if err!=nil{
+		return 0,err
+	}
 	word:=strings.ToLower(strings.Trim(words[0]," "))
 	sent:=strings.ToLower(strings.Trim(words[1]," "))
 	_,err=dao.VocabularyGet(ctx,client,int64(sender.ID),word)
@@ -427,4 +433,22 @@ func VocabularyCheck(userId int) ([]string,error){
 		vLits = append(vLits,v.Word)
 	}
 	return vLits,err
+}
+
+
+func judgeMessageFormat(message string) ([]string,error){
+	words :=[]string{}
+	if strings.Contains(message,":") {
+		words = strings.SplitN(message,":",2)
+	} else if strings.Contains(message,"/") {
+		words = strings.SplitN(message,"/",2)
+	} else if strings.Contains(message,";") {
+		words = strings.SplitN(message,";",2)
+	} else{
+		return words,errors.New("You entered format wrong, such as: [english:I'm learning english] (: can be instead / or ;)")
+	}
+	if len(words)<2{
+		return words,errors.New("You entered format wrong, such as: [english: I'm learning english] (: can be instead / or ;)")
+	}
+	return words,nil
 }

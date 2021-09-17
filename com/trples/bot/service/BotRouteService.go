@@ -131,7 +131,7 @@ func BotRoute()  {
 			return
 		}
 		if len(vList)<=0 {
-			bot.Send(m.Sender,"No need to review vocabularies")
+			bot.Send(m.Sender,"No vocabularies to review ")
 			err:=VocabularyEnd(m.Sender.ID)
 			if err!=nil{
 				bot.Send(m.Sender, fmt.Sprintf("End all review error: %s ",err))
@@ -176,7 +176,7 @@ func BotRoute()  {
 
 		fmt.Printf(" delete %s\n",message)
 		VocabularyDeleteByWord(m.Sender.ID,message)
-		bot.Send(m.Sender, "You will delete vocabulary "+m.Text)
+		bot.Send(m.Sender, fmt.Sprintf("You're deleting the vocabulary [%s]",m.Text))
 	})
 	bot.Handle("/lang", func(m *tb.Message) {
 		message:=strings.ReplaceAll(m.Text,"/lang","")
@@ -235,7 +235,7 @@ func BotRoute()  {
 			return
 		}
 		if len(vList)<=0 {
-			bot.Send(m.Sender,"No need to review vocabularies")
+			bot.Send(m.Sender,"No vocabularies to review ")
 			return
 		}
 		bot.Send(m.Sender, "These vocabularies need to be reviewed:")
@@ -247,20 +247,20 @@ func BotRoute()  {
 	bot.Handle(tb.OnText, func(m *tb.Message) {
 		user:=UserGet(int64(m.Sender.ID))
 		if !user.IsInput {
-			bot.Send(m.Sender, fmt.Sprintf("Your status is error waitType=%s",user.WaitType))
+			bot.Send(m.Sender, fmt.Sprintf("You entered [%s], nothing happend",m.Text))
 		}
 		switch user.WaitType {
 			case dao.Add:
 				err:=VocabularyAddReceive(m.Sender,m.Text)
 				if err!=nil{
-					bot.Send(m.Sender, "Server error, please retry later")
+					bot.Send(m.Sender, fmt.Sprintf("[error] %s",err.Error()))
 					return
 				}
 				bot.Send(m.Sender, fmt.Sprintf("Add vocabulary %s successful",m.Text))
 			case dao.Update:
 				count,err:=VocabularyUpdateReceive(m.Sender,m.Text)
 				if err!=nil{
-					bot.Send(m.Sender, fmt.Sprintf("Server error, please retry later %s",err))
+					bot.Send(m.Sender, fmt.Sprintf("[error] %s",err.Error()))
 					return
 				}
 				if count>0{
@@ -274,7 +274,7 @@ func BotRoute()  {
 					if result.Total>0 {
 						bot.Send(m.Sender, fmt.Sprintf("Review word: %s %t, total:%d, pass:%d",result.Word,result.Result,result.Total,result.Pass))
 					}else{
-						bot.Send(m.Sender, err)
+						bot.Send(m.Sender, err.Error())
 					}
 				}else{
 					bot.Send(m.Sender, fmt.Sprintf("Review word: %s %t, total:%d, pass:%d",result.Word,result.Result,result.Total,result.Pass))

@@ -17,6 +17,8 @@ start(){
 }
 
 restart(){
+  aws s3 cp s3://triple-s-dev/uenglish .
+  chmod a+x uenglish
   stop
   start
 }

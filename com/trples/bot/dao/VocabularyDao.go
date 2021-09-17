@@ -6,6 +6,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"log"
 	domain "telegram_bot/com/trples/bot/config"
@@ -162,7 +163,10 @@ func VocabularyFind(ctx context.Context, client *mongo.Client,filter bson.D) ([]
 	collection := database.Collection(Collection_Vocabulary)
 
 
-	cursor,err:=collection.Find(ctx,filter)
+	opts := options.Find()
+	opts.SetSort(bson.D{{"create_at", -1}})
+
+	cursor,err:=collection.Find(ctx,filter,opts)
 	var vocabularyList []Vocabulary
 	if err!=nil{
 		return vocabularyList,err
