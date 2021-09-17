@@ -369,3 +369,52 @@ func VocabularyFindByUserId(userId int) ([]dao.Vocabulary,error){
 	}
 	return dao.VocabularyFind(ctx,client,where)
 }
+
+func VocabularyRemember(userId int,word string) error{
+	word = strings.ToLower(strings.Trim(word," "))
+
+	ctx,client,err:=dao.GetClient()
+	if err!=nil{
+		return err
+	}
+	defer dao.CloseClient(ctx,client)
+	_,err=dao.VocabularyGet(ctx,client,int64(userId),word)
+	if err!=nil{
+		return err
+	}
+	return dao.VocabularyRemember(ctx,client,int64(userId),word,true)
+}
+
+func VocabularyReset(userId int,word string) error{
+	word = strings.ToLower(strings.Trim(word," "))
+
+	ctx,client,err:=dao.GetClient()
+	if err!=nil{
+		return err
+	}
+	defer dao.CloseClient(ctx,client)
+	vocabulary,err:=dao.VocabularyGet(ctx,client,int64(userId),word)
+	if err!=nil{
+		return err
+	}
+	return dao.VocabularyUpdatePeriod(ctx,client,int64(userId),word,vocabulary.Period,0)
+}
+
+func VocabularyCheck(userId int) ([]string,error){
+
+	ctx,client,err:=dao.GetClient()
+	var vLits []string
+
+	if err!=nil{
+		return vLits,err
+	}
+	defer dao.CloseClient(ctx,client)
+	result,err:=dao.VocabularyFindByReview(ctx,client,int64(userId))
+	if err!=nil{
+		return vLits,err
+	}
+	for _,v:=range result {
+		vLits = append(vLits,v.Word)
+	}
+	return vLits,err
+}

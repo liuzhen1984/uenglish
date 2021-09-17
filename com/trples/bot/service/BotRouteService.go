@@ -204,6 +204,46 @@ func BotRoute()  {
 		bot.Send(m.Sender, "https://www.ldoceonline.com/dictionary/" + strings.ToLower(strings.Trim(result, " ")))
 	})
 
+	bot.Handle("/remember", func(m *tb.Message) {
+		message:=strings.ReplaceAll(m.Text,"/remember","")
+
+		fmt.Printf(" remember %s\n",message)
+		result:=VocabularyRemember(m.Sender.ID,message)
+		if result!=nil {
+			bot.Send(m.Sender, fmt.Sprintf("Remember the vocabulary [%s] operate failed %s",message,result))
+			return
+		}
+		bot.Send(m.Sender, fmt.Sprintf("Remember the vocabulary [%s] operate successful",message))
+	})
+
+	bot.Handle("/reset", func(m *tb.Message) {
+		message:=strings.ReplaceAll(m.Text,"/remember","")
+
+		fmt.Printf(" remember %s\n",message)
+		result:=VocabularyReset(m.Sender.ID,message)
+		if result!=nil {
+			bot.Send(m.Sender, fmt.Sprintf("Reset the vocabulary [%s] operate failed %s",message,result))
+			return
+		}
+		bot.Send(m.Sender, fmt.Sprintf("Reset the vocabulary [%s] operate successful",message))
+	})
+
+	bot.Handle("/check", func(m *tb.Message) {
+		vList,err:=VocabularyCheck(m.Sender.ID)
+		if err!=nil{
+			bot.Send(m.Sender, fmt.Sprintf("Server error, please retry later %s",err.Error()))
+			return
+		}
+		if len(vList)<=0 {
+			bot.Send(m.Sender,"No need to review vocabularies")
+			return
+		}
+		bot.Send(m.Sender, "These vocabularies need to be reviewed:")
+		for _,v:=range vList{
+			bot.Send(m.Sender,v)
+		}
+	})
+
 	bot.Handle(tb.OnText, func(m *tb.Message) {
 		user:=UserGet(int64(m.Sender.ID))
 		if !user.IsInput {
