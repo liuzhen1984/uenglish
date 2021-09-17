@@ -271,7 +271,11 @@ func BotRoute()  {
 			case dao.Review:
 				result,err:=VocabularyReviewReceive(m.Sender,m.Text)
 				if err!=nil{
-					bot.Send(m.Sender, fmt.Sprintf("Review word: %s %t, total:%d, pass:%d",result.Word,result.Result,result.Total,result.Pass))
+					if result.Total>0 {
+						bot.Send(m.Sender, fmt.Sprintf("Review word: %s %t, total:%d, pass:%d",result.Word,result.Result,result.Total,result.Pass))
+					}else{
+						bot.Send(m.Sender, err)
+					}
 				}else{
 					bot.Send(m.Sender, fmt.Sprintf("Review word: %s %t, total:%d, pass:%d",result.Word,result.Result,result.Total,result.Pass))
 				}

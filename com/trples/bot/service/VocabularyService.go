@@ -144,6 +144,13 @@ func VocabularyReviewAll(userId int) ([]string,error){
 		return vLits,err
 	}
 	defer dao.CloseClient(ctx,client)
+	user,err:=dao.UserGet(ctx,client,int64(userId))
+	if err!=nil{
+		return vLits,err
+	}
+	if user.WaitType==dao.Review {
+		return vLits,errors.New("You are reviewing ...")
+	}
 	err= dao.UserStartInput(ctx,client,int64(userId),dao.Review)
 	result,err:=dao.VocabularyFindByReview(ctx,client,int64(userId))
 	if err==nil{
@@ -164,6 +171,9 @@ func VocabularyReviewReceive(sender *telebot.User,message string) (ReviewResult,
 	}
 	defer dao.CloseClient(ctx,client)
 	words := strings.Split(message,":")
+	if len(words)<2{
+		return ReviewResult{},errors.New("You typed format wrong, please retype:")
+	}
 	word:=strings.ToLower(strings.Trim(words[0]," "))
 	sent:=strings.ToLower(strings.Trim(words[1]," "))
 
