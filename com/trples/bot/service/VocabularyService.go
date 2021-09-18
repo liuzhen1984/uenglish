@@ -127,13 +127,22 @@ func VocabularyReview(userId int,word string) ([]string,error){
 		return results,err
 	}
 	defer dao.CloseClient(ctx,client)
+	user,err:=dao.UserGet(ctx,client,int64(userId))
+	if err!=nil{
+		return results,err
+	}
+	if user.WaitType==dao.Review {
+		return results,errors.New("You are reviewing ...")
+	}
 	vocabulary,err:=dao.VocabularyGet(ctx,client,int64(userId),word)
 	if err!=nil{
 		return results,err
 	}
 	if vocabulary.LearnStatus == dao.Learning {
+		err= dao.UserStartInput(ctx,client,int64(userId),dao.Review)
 		return results,errors.New(fmt.Sprintf("%s is reviewing\n",word))
 	}
+	results = append(results,word)
 	dao.VocabularyUpdateLearnStatus(ctx,client,int64(userId),word,dao.Learning)
 	dao.SentenceUpdateStatusByWord(ctx,client,int64(userId),word,dao.FAIL)
 	return results,dao.UserStartInput(ctx,client,int64(userId),dao.Review)
