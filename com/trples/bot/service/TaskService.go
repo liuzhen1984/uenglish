@@ -47,6 +47,7 @@ func UserChecking() {
 			},
 		},
 		{"is_enable",true},
+		{"is_input",false},
 		{
 			"$or",bson.A{
 				bson.D{{"reminder_at",nil}},
